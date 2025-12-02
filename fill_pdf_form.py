@@ -16,13 +16,15 @@ except ImportError:
     fake = None
 
 class PDFFormFiller:
-    def __init__(self, pdf_path: str, json_path: str):
+    def __init__(self, pdf_path: str, json_data: str | dict):
         self.pdf_path = pdf_path
-        self.json_path = json_path
         self.doc = fitz.open(pdf_path)
         
-        with open(json_path, 'r', encoding='utf-8') as f:
-            self.field_data = json.load(f)
+        if isinstance(json_data, str):
+            with open(json_data, 'r', encoding='utf-8') as f:
+                self.field_data = json.load(f)
+        else:
+            self.field_data = json_data
 
     def generate_value_for_field(self, field_info: dict):
         """Generate appropriate dummy data based on field metadata."""
@@ -68,8 +70,13 @@ class PDFFormFiller:
             if 'date' in key: return "01/01/2025"
             return f"Dummy {field_info['child']}"
 
-    def fill_form(self, output_path: str):
-        """Fill the form fields and save to output path."""
+    def fill_form(self, output_path: str, use_provided_values: bool = False):
+        """
+        Fill the form fields and save to output path.
+        Args:
+            output_path: Path to save filled PDF
+            use_provided_values: If True, use values from JSON instead of generating dummy data
+        """
         print(f"Filling form: {self.pdf_path}")
         
         filled_count = 0
@@ -98,7 +105,12 @@ class PDFFormFiller:
                         'child': widget.field_name.split('.')[-1] if widget.field_name else "unknown"
                     }
 
-                value = self.generate_value_for_field(field_info)
+                if use_provided_values and 'field_value' in field_info:
+                    value = field_info['field_value']
+                    # If empty string and we are in provided mode, we might want to leave it empty?
+                    # Or maybe the user provided "" to clear it.
+                else:
+                    value = self.generate_value_for_field(field_info)
                 
                 # Check for "pseudo-checkboxes" - fields that are small but not typed as buttons
                 is_pseudo_checkbox = False
